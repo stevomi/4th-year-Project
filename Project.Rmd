@@ -1,0 +1,205 @@
+---
+title: "R-programming of ALL(B-cell)"
+author: "Stephen Omitogun"
+date: "February 15, 2016"
+output: pdf_document
+---
+
+The library containing the ALL(acute lymphoblastic leukemia) data was downloaded from bioconductor.org through some commands.
+biocLite("ALL")
+biocLite("genefilter")
+
+To open the ALL dataset, the following commands are:
+```{r}
+library(Biobase)
+library(ALL)
+data(ALL)
+```
+
+##Investigating the ALL dataset##
+
+```{r, echo=TRUE, results='markup'}
+class(ALL)
+```
+
+```{r, echo=TRUE, results='markup'}
+ALL1 <- data.frame(ALL)
+```
+
+```{r, echo=TRUE, results='markup'}
+dim(ALL)
+```
+
+```{r, echo=TRUE, tidy=TRUE, results='asis'}
+str(ALL)
+```
+
+
+###Information about assay and sample data###
+
+
+```{r, echo=TRUE, tidy=TRUE}
+phenoData(ALL)
+```
+
+```{r, echo=TRUE, tidy=TRUE}
+varLabels(ALL)
+```
+
+```{r, echo=TRUE, tidy=TRUE}
+varMetadata(ALL)
+```
+
+```{r, echo=TRUE, tidy=TRUE}
+featureNames(ALL)[1:128]
+```
+The above results are the feature names.
+
+#####The patient id#####
+
+```{r, echo=TRUE, tidy=TRUE}
+sampleNames(ALL)[1:20]
+```
+
+```{r, echo=TRUE, tidy=TRUE}
+expressionData <- exprs(ALL)
+str(expressionData)
+```
+We can look at the expression rate at which individual patient gene were expressed. Below two feature names and expresion levels for each patient within the two features are computated.
+
+```{r, echo=TRUE, tidy=TRUE}
+gene.expression <- ALL[c("1000_at", "1001_at"),]
+exprs(gene.expression)
+```
+
+```{r, echo=TRUE, tidy=TRUE}
+pData(ALL)[1:15,]
+```
+######ALL phenotype data######
+
+####Converting ALL data into a data frame####
+
+```{r, echo=TRUE, tidy=TRUE}
+ALL1 <- data.frame(ALL)
+length(colnames(ALL1))
+head(colnames(ALL1))
+tail(colnames(ALL1))
+```
+
+**Subsetting B-cell patients from the ALL dataset**
+
+```{r, echo=TRUE, tidy=TRUE}
+ALL$BT
+
+anyB <- grep("^B", ALL$BT)
+b.cell <- ALL[, anyB]
+
+```
+
+```{r, echo=TRUE, tidy=TRUE}
+table(pData(b.cell)$sex)
+
+table(pData(b.cell)$mol.biol)
+
+table(pData(b.cell)$age)
+
+table(pData(b.cell)$kinet)
+
+table(pData(b.cell)$cyto.normal)
+
+table(pData(b.cell)$citog)
+```
+
+**Reducing genes based on variability**
+
+```{r, echo=TRUE, tidy=TRUE, }
+library(genefilter)
+library(RColorBrewer)
+```
+
+
+```{r}
+B.cell1 = 2^exprs(b.cell)
+mean_gene = rowMeans(B.cell1)
+sd_gene = rowSds(B.cell1)
+cv = sd_gene/mean_gene
+blues.ramp = colorRampPalette(brewer.pal(9, "Reds")[-1])
+dCol = densCols(log(mean_gene), log(sd_gene), colramp = blues.ramp)
+par(mfrow=c(2,2))
+
+plot(mean_gene, sd_gene, log='xy', col=dCol, pch = 16, cex=0.1)
+abline(v=100, lwd=3, col='blue')
+
+hist(log(cv), main = NA)
+abline(v=log(0.4), lwd=3, col='blue')
+
+B.genes = filterfun(cv(0.4,10))
+B.gene.fil = genefilter(B.cell1, B.genes)
+B.cell2 = log2(B.cell1[B.gene.fil,])
+
+##correlation of first 5 reduced genes starting with x01005
+
+B.genes = filterfun(cv(0.4,10))
+B.gene.fil = genefilter(B.cell1, B.genes)
+B.cell2 = log2(B.cell1[B.gene.fil,])
+B.cell2_df = data.frame(B.cell2)
+B.cell2_df_vars = B.cell2_df[, c(1:5)]
+mar.orig = par()$mar
+par(mar=c(1,1,1,1))
+pairs(B.cell2_df_vars,panel = panel.smooth, col= 9 + B.cell2_df$X01005)
+```
+
+```{r}
+
+BT = which(as.character(ALL$BT) %in% c("B", "T"))
+Bcell = ALL[, intersect(anyB, BT)]
+Bcell$BT = factor(Bcell$BT)
+str(Bcell$BT)
+
+
+B.expressionData = exprs(Bcell)
+str(B.expressionData)
+
+B.sds = rowSds(B.expressionData)
+
+hist(B.sds, breaks=50, col="red", xlab="standard deviation of the probes")
+
+B.shorthen = shorth(B.sds)
+B.shorthen
+abline(v=B.shorthen, col="blue", lwd=3, lty=2)
+
+Bcellfiltered = Bcell[B.sds>=B.shorthen]
+
+dim(exprs(Bcellfiltered))
+
+B.sds_new = rowSds(exprs(Bcellfiltered))
+
+hist(B.sds_new, breaks=50, col="blue", xlab = "new distribution of standard deviation")
+
+B.shorthen_new = shorth(B.sds_new)
+
+B.shorthen_new
+abline(v=B.shorthen_new, col="blue", lwd=3, lty=2)
+
+```
+
+
+Correlation of the first 5 furthered reduced genes 
+```{r}
+Bcellfiltered_df = data.frame(Bcellfiltered)
+Bcellfiltered_vars = Bcellfiltered_df[, c(1:5)]
+mar.orig = par()$mar
+par(mar = c(1,1,1,1))
+pairs(Bcellfiltered_vars, panel = panel.smooth, col= 9 + Bcellfiltered_df$X1003_s_at)
+
+par(mar = rep(2,4))
+plot(Bcellfiltered_df$X1003_s_at)
+```
+
+```{r}
+summary(lm(Bcellfiltered_df$X1003_s_at~Bcellfiltered_df$X1004_at))
+Bcell_fit = lm(Bcellfiltered_df$X101_at~Bcellfiltered_df$X1004_at)
+anova(Bcell_fit)
+par(mar = rep(2,4))
+plot(Bcell_fit)
+```
