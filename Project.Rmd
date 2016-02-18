@@ -125,9 +125,26 @@ library(gplots)
 library(dplyr)
 library(AnnotationDbi)
 
+lowgenes = rowMeans(exprsData) < 8.5
+table(lowgenes)
+eData_filt = filter(as.data.frame(exprsData), !lowgenes)
+dim(eData_filt)
+
+lowgenes2 = rowMedians(as.matrix(exprsData)) < 8.5
+
+table(lowgenes2)
+table(lowgenes2, lowgenes)
+
+exprsData_df = data.frame(exprsData)
+
+eData_filt1 = filter(exprsData_df, !lowgenes2)
+
+eData_filt1 = log2(eData_filt1 +1) ###<- To remove aswell the undefined values.
+dim(eData_filt1)
+
 ```
 
-
+***Exploratory Analysis***
 ```{r}
 ##Boxplot applied to entire expression matrix
 boxplot(log2(exprsData+1),col=2,range=0)
@@ -150,29 +167,6 @@ qqplot(log2(exprsData[,1]+1), log2(exprsData[,2]+1), col=3)
 ### I can also use the qqplot to see if the samples are consistant. qqplot is making one dot for every quantile of this two distribution.
 
 abline(c(0,1)) ###<- creates a 45 degree line.
-
-mm = log2(exprsData[,1]+1) - log2(exprsData[,2]+1)
-
-aa = log2(exprsData[,1]+1) + log2(exprsData[,2]+1)
-
-plot(aa, mm, col=2)
-
-lowgenes = rowMeans(exprsData) < 8.5
-table(lowgenes)
-eData_filt = filter(as.data.frame(exprsData), !lowgenes)
-dim(eData_filt)
-
-lowgenes2 = rowMedians(as.matrix(exprsData)) < 8.5
-
-table(lowgenes2)
-table(lowgenes2, lowgenes)
-
-exprsData_df = data.frame(exprsData)
-
-eData_filt1 = filter(exprsData_df, !lowgenes2)
-
-eData_filt1 = log2(eData_filt1 +1) ###<- To remove aswell the undefined values.
-dim(eData_filt1)
 
 hist(log2(eData_filt1[,1]+1), col=2)
 
@@ -263,4 +257,20 @@ table(kmeans$cluster)
 newdata = as.matrix(eData_filt1)[order(kmeans$cluster),]
 
 heatmap(newdata, col = colramp, Colv = NA, Rowv = NA)
+```
+
+***Singular Decomposition***
+```{r}
+edata_centered = eData_filt1 - rowMeans(eData_filt1) ##<- centering filtered expression data
+
+edata_sdv1 = svd(edata_centered)
+names(edata_sdv1)
+###<- 'd' is the diagnal matrix, returns diagnal matrix , 'v' and 'u' components tells you the variation across genes and samples.
+dim(eData_filt1)
+dim(edata_sdv1$u)
+dim(edata_sdv1$v)
+
+###<- ploting singular value of our expression data.
+plot(edata_sdv1$d, ylab="singular values", col=2)
+plot(edata_sdv1$d^2/sum(edata_sdv1$d^2), ylab="% Variance explained", col=2)
 ```
