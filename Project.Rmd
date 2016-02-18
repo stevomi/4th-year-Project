@@ -77,14 +77,6 @@ pData(ALL)[1:15,]
 ```
 ######ALL phenotype data######
 
-####Converting ALL data into a data frame####
-
-```{r, echo=TRUE, tidy=TRUE}
-ALL1 <- data.frame(ALL)
-length(colnames(ALL1))
-head(colnames(ALL1))
-tail(colnames(ALL1))
-```
 
 **Subsetting B-cell patients from the ALL dataset**
 
@@ -97,109 +89,178 @@ b.cell <- ALL[, anyB]
 ```
 
 ```{r, echo=TRUE, tidy=TRUE}
-table(pData(b.cell)$sex)
 
-table(pData(b.cell)$mol.biol)
+exprsData = exprs(b.cell)
+dim(exprsData)
 
-table(pData(b.cell)$age)
+pData = pData(b.cell)
+dim(pData)
+head(pData)
 
-table(pData(b.cell)$kinet)
+featureData = featureData(b.cell)
+dim(featureData)
 
-table(pData(b.cell)$cyto.normal)
+table(pData$sex, pData$age)
 
-table(pData(b.cell)$citog)
+table(pData$mol.biol, pData$BT)
+
+table(pData$age, pData$BT)
+
+summary(exprsData)
+
 ```
 
 **Reducing genes based on variability**
 
-```{r, echo=TRUE, tidy=TRUE, }
+```{r, echo=TRUE, tidy=TRUE, results='hide', warning=FALSE}
+tropical= c('darkorange', 'dodgerblue', 'hotpink', 'limegreen','yellow')
+
+palette(tropical)
+par(pch=19)
 library(genefilter)
 library(RColorBrewer)
-```
-
-
-```{r}
-B.cell1 = 2^exprs(b.cell)
-mean_gene = rowMeans(B.cell1)
-sd_gene = rowSds(B.cell1)
-cv = sd_gene/mean_gene
-blues.ramp = colorRampPalette(brewer.pal(9, "Reds")[-1])
-dCol = densCols(log(mean_gene), log(sd_gene), colramp = blues.ramp)
-par(mfrow=c(2,2))
-
-plot(mean_gene, sd_gene, log='xy', col=dCol, pch = 16, cex=0.1)
-abline(v=100, lwd=3, col='blue')
-
-hist(log(cv), main = NA)
-abline(v=log(0.4), lwd=3, col='blue')
-
-B.genes = filterfun(cv(0.4,10))
-B.gene.fil = genefilter(B.cell1, B.genes)
-B.cell2 = log2(B.cell1[B.gene.fil,])
-
-##correlation of first 5 reduced genes starting with x01005
-
-B.genes = filterfun(cv(0.4,10))
-B.gene.fil = genefilter(B.cell1, B.genes)
-B.cell2 = log2(B.cell1[B.gene.fil,])
-B.cell2_df = data.frame(B.cell2)
-B.cell2_df_vars = B.cell2_df[, c(1:5)]
-mar.orig = par()$mar
-par(mar=c(1,1,1,1))
-pairs(B.cell2_df_vars,panel = panel.smooth, col= 9 + B.cell2_df$X01005)
-```
-
-```{r}
-
-BT = which(as.character(ALL$BT) %in% c("B", "T"))
-Bcell = ALL[, intersect(anyB, BT)]
-Bcell$BT = factor(Bcell$BT)
-str(Bcell$BT)
-
-
-B.expressionData = exprs(Bcell)
-str(B.expressionData)
-
-B.sds = rowSds(B.expressionData)
-
-hist(B.sds, breaks=50, col="red", xlab="standard deviation of the probes")
-
-B.shorthen = shorth(B.sds)
-B.shorthen
-abline(v=B.shorthen, col="blue", lwd=3, lty=2)
-
-Bcellfiltered = Bcell[B.sds>=B.shorthen]
-
-dim(exprs(Bcellfiltered))
-
-B.sds_new = rowSds(exprs(Bcellfiltered))
-
-hist(B.sds_new, breaks=50, col="blue", xlab = "new distribution of standard deviation")
-
-B.shorthen_new = shorth(B.sds_new)
-
-B.shorthen_new
-abline(v=B.shorthen_new, col="blue", lwd=3, lty=2)
+library(devtools)
+library(RSkittleBrewer)
+library(gplots)
+library(dplyr)
+library(AnnotationDbi)
 
 ```
 
 
-Correlation of the first 5 furthered reduced genes 
 ```{r}
-Bcellfiltered_df = data.frame(Bcellfiltered)
-Bcellfiltered_vars = Bcellfiltered_df[, c(1:5)]
-mar.orig = par()$mar
-par(mar = c(1,1,1,1))
-pairs(Bcellfiltered_vars, panel = panel.smooth, col= 9 + Bcellfiltered_df$X1003_s_at)
+##Boxplot applied to entire expression matrix
+boxplot(log2(exprsData+1),col=2,range=0)
 
-par(mar = rep(2,4))
-plot(Bcellfiltered_df$X1003_s_at)
+par(mfrow=c(1,2)) ##<- setting up parameter for plots. 
+hist(log2(exprsData[,1]+1), col=2)
+
+hist(log2(exprsData[,2]+1), col=2)
+
+par(mfrow=c(1,1))
+
+plot(density(log2(exprsData[,2]+1)),col=2)
+
+###The lines command will allow to overlay another plot on top of the plot previously
+
+lines(density(log2(exprsData[,2]+1)),col=3)
+
+qqplot(log2(exprsData[,1]+1), log2(exprsData[,2]+1), col=3)
+
+### I can also use the qqplot to see if the samples are consistant. qqplot is making one dot for every quantile of this two distribution.
+
+abline(c(0,1)) ###<- creates a 45 degree line.
+
+mm = log2(exprsData[,1]+1) - log2(exprsData[,2]+1)
+
+aa = log2(exprsData[,1]+1) + log2(exprsData[,2]+1)
+
+plot(aa, mm, col=2)
+
+lowgenes = rowMeans(exprsData) < 8.5
+table(lowgenes)
+eData_filt = filter(as.data.frame(exprsData), !lowgenes)
+dim(eData_filt)
+
+lowgenes2 = rowMedians(as.matrix(exprsData)) < 8.5
+
+table(lowgenes2)
+table(lowgenes2, lowgenes)
+
+exprsData_df = data.frame(exprsData)
+
+eData_filt1 = filter(exprsData_df, !lowgenes2)
+
+eData_filt1 = log2(eData_filt1 +1) ###<- To remove aswell the undefined values.
+dim(eData_filt1)
+
+hist(log2(eData_filt1[,1]+1), col=2)
+
+boxplot(as.matrix(log2(eData_filt1+8.5)),col=2)
 ```
 
 ```{r}
-summary(lm(Bcellfiltered_df$X1003_s_at~Bcellfiltered_df$X1004_at))
-Bcell_fit = lm(Bcellfiltered_df$X101_at~Bcellfiltered_df$X1004_at)
-anova(Bcell_fit)
-par(mar = rep(2,4))
-plot(Bcell_fit)
+boxplot(colSums(eData_filt1) ~ pData$sex, col=2) ###<- comparing the gene expression between male and female using a box plot.
+
+boxplot(colSums(eData_filt1) ~ pData$sex)
+
+points(colSums(eData_filt1) ~ jitter(as.numeric(pData$sex)), col=as.numeric(pData$sex), pch=19) ###<- adding points to the boxplot exploratory data to analyse the comparison.
+
+plot(colSums(eData_filt1) ~ pData$age)
+
+boxplot(colSums(eData_filt1) ~ pData$BT)
+
+points(colSums(eData_filt1) ~ jitter(as.numeric(pData$BT)), col=as.numeric(pData$BT), pch=19)
+eData_filt1_matrix = as.matrix(eData_filt1)
+
+boxplot(colSums(eData_filt1) ~ pData$`t(4;11)`)
+
+boxplot(colSums(eData_filt1) ~ pData$`t(9;22)`)
+
+points(colSums(eData_filt1) ~ jitter(as.numeric(pData$`t(9;22)`)), col=as.numeric(pData$`t(9;22)`), pch=19)
+
+###<- 
+boxplot(colSums(eData_filt1) ~ pData$mol.biol)
+points(colSums(eData_filt1) ~ jitter(as.numeric(pData$mol.biol)), col=as.numeric(pData$mol.biol), pch=19)
+plot(colSums(eData_filt1) ~ pData$mol.biol + pData$age)
+boxplot(colSums(eData_filt1) ~ pData$mol.biol + pData$sex)
+
+```
+
+
+```{r}
+eData_filt1_matrix = as.matrix(eData_filt1)
+
+colramp = colorRampPalette(c(3, "white",2))(9)
+
+heatmap(eData_filt1_matrix, col=colramp)
+
+heatmap(eData_filt1_matrix, col=colramp, Rowv = NA, Colv = NA)
+
+heatmap.2(eData_filt1_matrix, col = colramp, Rowv = NA, Colv = NA, dendrogram = "none", scale = "row", trace = "none")
+
+```
+
+***Clustering***
+
+```{r}
+library(dendextend)
+
+dist1 = dist(t(eData_filt1))
+
+heatmap(as.matrix(dist1), col=colramp, Colv = NA, Rowv = NA)
+
+hclust1 = hclust(dist1)
+
+plot(hclust1)
+plot(hclust1, hang=-1)
+
+dend = as.dendrogram(hclust1)
+
+dend = color_labels(hclust1,4,1:14)
+
+dend = color_labels(hclust1,4,1:4)
+
+dend = color_labels(hclust1,4,1:4)
+
+plot(dend)
+
+dend = color_labels(hclust1,3,1:3)
+
+plot(dend)
+
+kmeans = kmeans(eData_filt1, centers = 3)
+names(kmeans)
+
+matplot(t(kmeans$centers))
+
+matplot(t(kmeans$centers), col=1:3, type = "l", lwd=3)
+
+table(kmeans$cluster)
+
+table(kmeans$cluster)
+
+newdata = as.matrix(eData_filt1)[order(kmeans$cluster),]
+
+heatmap(newdata, col = colramp, Colv = NA, Rowv = NA)
 ```
