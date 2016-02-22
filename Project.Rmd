@@ -10,7 +10,7 @@ biocLite("ALL")
 biocLite("genefilter")
 
 To open the ALL dataset, the following commands are:
-```{r}
+```{r, results='hide', message=FALSE}
 library(Biobase)
 library(ALL)
 data(ALL)
@@ -112,7 +112,7 @@ summary(exprsData)
 
 **Reducing genes based on variability**
 
-```{r, echo=TRUE, tidy=TRUE, results='hide', warning=FALSE}
+```{r, echo=TRUE, tidy=TRUE, results='hide', warning=FALSE, message=FALSE}
 tropical= c('darkorange', 'dodgerblue', 'hotpink', 'limegreen','yellow')
 
 palette(tropical)
@@ -124,7 +124,9 @@ library(RSkittleBrewer)
 library(gplots)
 library(dplyr)
 library(AnnotationDbi)
+```
 
+```{r}
 lowgenes = rowMeans(exprsData) < 8.5
 table(lowgenes)
 eData_filt = filter(as.data.frame(exprsData), !lowgenes)
@@ -259,12 +261,15 @@ newdata = as.matrix(eData_filt1)[order(kmeans$cluster),]
 heatmap(newdata, col = colramp, Colv = NA, Rowv = NA)
 ```
 
-***Singular Decomposition***
+***Principal Compostition (pc) and singular decomposition***
 ```{r}
-edata_centered = eData_filt1 - rowMeans(eData_filt1) ##<- centering filtered expression data
+pc1 = prcomp(eData_filt1)
+
+edata_centered = t(t(eData_filt1) - colMeans(eData_filt1)) ##<- centering filtered expression data by column
 
 edata_sdv1 = svd(edata_centered)
 names(edata_sdv1)
+edata_sdv1$d
 ###<- 'd' is the diagnal matrix, returns diagnal matrix , 'v' and 'u' components tells you the variation across genes and samples.
 dim(eData_filt1)
 dim(edata_sdv1$u)
@@ -273,4 +278,25 @@ dim(edata_sdv1$v)
 ###<- ploting singular value of our expression data.
 plot(edata_sdv1$d, ylab="singular values", col=2)
 plot(edata_sdv1$d^2/sum(edata_sdv1$d^2), ylab="% Variance explained", col=2)
+
+par(mfrow=c(1,2))###<- parameter for my plot to have two panel
+plot(edata_sdv1$v[,1], col=2, ylab="1st PC") ###<- plot first principal component(PC).
+plot(edata_sdv1$v[,2], col=2, ylab="2nd PC")
+
+par(mfrow=c(1,1))
+plot(edata_sdv1$v[,1],edata_sdv1$v[,2], col=2, ylab="2nd PC", xlab="1st PC")
+plot(edata_sdv1$v[,1],edata_sdv1$v[,2], ylab="2nd PC", xlab="1st PC", col=as.numeric(pData$age))
+plot(edata_sdv1$v[,1],edata_sdv1$v[,2], ylab="2nd PC", xlab="1st PC", col=as.numeric(pData$BT))
+
+```
+
+```{r}
+model1 = lm(colSums(eData_filt1) ~ pData$sex + pData$age)
+summary(model1)
+
+model2 = lm(colSums(eData_filt1) ~ pData$sex + pData$age + pData$BT + pData$`t(4;11)`)
+summary(model2)
+
+model3 = lm(colSums(eData_filt1) ~ pData$BT + pData$`t(4;11)`)
+summary(model3)
 ```
